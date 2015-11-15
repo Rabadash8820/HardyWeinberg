@@ -2,7 +2,7 @@
 
 namespace HardyWeinberg.Kernel {
 
-    public struct Genotype {
+    public class Genotype {
         // PROPERTIES
         public IList<Allele> Alleles { get; }
 
@@ -14,15 +14,16 @@ namespace HardyWeinberg.Kernel {
             Alleles = new List<Allele>(2);
 
             // Define the genotype as homozygous
-            Alleles[0] = Alleles[1] = allele;
+            Alleles.Add(allele);
+            Alleles.Add(allele);
             _homo = true;
         }
         public Genotype(Allele allele1, Allele allele2) {
             Alleles = new List<Allele>(2);
 
             // Define the genotype as heterozygous
-            Alleles[0] = allele1;
-            Alleles[1] = allele2;
+            Alleles.Add(allele1);
+            Alleles.Add(allele2);
             _homo = false;
         }
 

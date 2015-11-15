@@ -45,14 +45,12 @@ namespace HardyWeinberg.Kernel {
             // Generate a new population of the same size
             // Each child's genotype is a pair of random alleles from random parent genotypes
             for (int i = 0; i < _popSize; ++i) {
-                int g1 = _rand.Next(0, numGenotypes);
-                int g2 = _rand.Next(0, numGenotypes);
-                Genotype genotype1 = _genotypes[g1];
-                Genotype genotype2 = _genotypes[g2];
+                Genotype genotype1 = randomGenotype();
+                Genotype genotype2 = randomGenotype();
                 Allele a1 = randomAllele(genotype1);
                 Allele a2 = randomAllele(genotype2);
                 Genotype childGenotype = _genotypes.Where(g =>
-                                                        (g.Alleles[0].Equals(a1) && g.Alleles.Equals(a2)) ||
+                                                        (g.Alleles[0].Equals(a1) && g.Alleles[1].Equals(a2)) ||
                                                         (g.Alleles[0].Equals(a2) && g.Alleles[1].Equals(a1)))
                                                    .Single();
                 newCounts[childGenotype]++;
@@ -63,6 +61,21 @@ namespace HardyWeinberg.Kernel {
         }
 
         // HELPER FUNCTIONS
+        private Genotype randomGenotype() {
+            long g1 = (long)(_rand.NextDouble() * _popSize);
+
+            long first = 0;
+            Genotype result = null;
+            foreach (Genotype g in _counts.Keys) {
+                if (first <= g1 && g1 < first + _counts[g]) {
+                    result = g;
+                    break;
+                }
+                first += _counts[g];
+            }
+
+            return result;
+        }
         private Allele randomAllele(Genotype genotype) {
             // If the Genotype is homozygous then just return the first Allele (doesn't matter which)
             if (genotype.IsHomozygous)

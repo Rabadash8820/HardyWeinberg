@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
+using System.Windows.Forms.DataVisualization.Charting;
 
 using HardyWeinberg.Kernel;
 using HardyWeinberg.Util;
@@ -19,30 +20,24 @@ namespace HardyWeinberg.Shell {
         private BindingSource _speedBS;
         private Allele[] _dominantAlleles;
         private Allele[] _recessiveAlleles;
+        private GenotypeCount[] _homoCounts;
+        private GenotypeCount[,] _heteroCounts;
         private Simulator _sim;
         private int _iteration;
+        private Dictionary<Allele, Series> _series;
+        private Dictionary<Allele, DataGridViewColumn> _dgvColumns;
+
+        private const int DEFAULT_COUNT = 100;
+        private const int NUM_DEFAULT_ALLELES = 5;
+        private MarkerStyle[] MARKER_STYLES;
 
         // CONSTRUCTORS
         public MainForm() {
             InitializeComponent();
 
-            // Set allele symbols
-            _dominantAlleles = new Allele[5] {
-                new Allele() { Symbol="A",IsRecessive=false },
-                new Allele() { Symbol="B",IsRecessive=false },
-                new Allele() { Symbol="C",IsRecessive=false },
-                new Allele() { Symbol="D",IsRecessive=false },
-                new Allele() { Symbol="E",IsRecessive=false },
-            };
-            _recessiveAlleles = new Allele[5] {
-                new Allele() { Symbol="a",IsRecessive=true },
-                new Allele() { Symbol="b",IsRecessive=true },
-                new Allele() { Symbol="c",IsRecessive=true },
-                new Allele() { Symbol="d",IsRecessive=true },
-                new Allele() { Symbol="e",IsRecessive=true },
-            };
+            defineConstants();
 
-            // Set allele data bindings
+            // Select default Alleles
             DominantCombo.SelectedIndex = 0;
             RecessiveCombo.SelectedIndex = 0;
 
@@ -65,21 +60,19 @@ namespace HardyWeinberg.Shell {
         private void DominantCombo_SelectedIndexChanged(object sender, EventArgs e) {
             int numDominant = Convert.ToInt32(DominantCombo.SelectedItem);
             int numRecessive = Convert.ToInt32(RecessiveCombo.SelectedItem);
-
-            redrawDominantAlleles(numDominant);
-            redrawGenotypes(numDominant, numRecessive);
+            
+            redrawAlleleAndGenotypeControls(numDominant, numRecessive);
         }
         private void RecessiveCombo_SelectedIndexChanged(object sender, EventArgs e) {
             int numDominant = Convert.ToInt32(DominantCombo.SelectedItem);
             int numRecessive = Convert.ToInt32(RecessiveCombo.SelectedItem);
 
-            redrawRecessiveAlleles(numRecessive);
-            redrawGenotypes(numDominant, numRecessive);
+            redrawAlleleAndGenotypeControls(numDominant, numRecessive);
         }
         private void StepBtn_Click(object sender, EventArgs e) {
             // Make sure the Simulator has been initialized with user's parameters
             if (_sim == null)
-                _sim = defineSimulator();
+                setupSimulation();
 
             // Do a single iteration
             doIteration(_sim);
@@ -90,7 +83,7 @@ namespace HardyWeinberg.Shell {
         private void PlayPauseBtn_Click(object sender, EventArgs e) {
             // Make sure the Simulator has been initialized with user's parameters
             if (_sim == null)
-                _sim = defineSimulator();
+                setupSimulation();
 
             // If Simulation is already running, then pause, otherwise play
             if (SimulationWorker.IsBusy)
@@ -135,58 +128,173 @@ namespace HardyWeinberg.Shell {
         }
 
         // HELPER FUNCTIONS
+        private void defineConstants() {
+            // Define default Alleles
+            _dominantAlleles = new Allele[NUM_DEFAULT_ALLELES] {
+                new Allele() { Symbol="A", IsRecessive=false },
+                new Allele() { Symbol="B", IsRecessive=false },
+                new Allele() { Symbol="C", IsRecessive=false },
+                new Allele() { Symbol="D", IsRecessive=false },
+                new Allele() { Symbol="E", IsRecessive=false },
+            };
+            _recessiveAlleles = new Allele[NUM_DEFAULT_ALLELES] {
+                new Allele() { Symbol="a", IsRecessive=true },
+                new Allele() { Symbol="b", IsRecessive=true },
+                new Allele() { Symbol="c", IsRecessive=true },
+                new Allele() { Symbol="d", IsRecessive=true },
+                new Allele() { Symbol="e", IsRecessive=true },
+            };
+
+            // Define MarkerStyles to be used in later plotting
+            MARKER_STYLES = new MarkerStyle[NUM_DEFAULT_ALLELES] {
+                MarkerStyle.Diamond,
+                MarkerStyle.Square,
+                MarkerStyle.Circle,
+                MarkerStyle.Triangle,
+                MarkerStyle.Cross,
+            };
+        }
         private void resetSimulation() {
             _sim = null;
             _iteration = 0;
 
             IterationLbl.Text = $"Iteration: {0}";
 
+            // Adjust Controls
+            ConfigTblLayout.Enabled = true;
             ResetBtn.Enabled = false;
+            foreach (Series s in _series.Values)
+                s.Points.Clear();
+            OutputDgv.Rows.Clear();
         }
-        private void redrawDominantAlleles(int num) {
-            // Build a string out of the dominant allele symbols
-            StringBuilder sb = new StringBuilder($"{{ {_dominantAlleles[0].Symbol}");
-            for (int a = 1; a < num; ++a)
+        private void redrawAlleleAndGenotypeControls(int numDominant, int numRecessive) {
+            StringBuilder sb;
+
+            // Build a string out of the dominant allele symbols and display it
+            sb = new StringBuilder($"{{ {_dominantAlleles[0].Symbol}");
+            for (int a = 1; a < numDominant; ++a)
                 sb.Append($", {_dominantAlleles[a].Symbol}");
             sb.Append(" }");
-
             DominantSetLbl.Text = sb.ToString();
-        }
-        private void redrawRecessiveAlleles(int num) {
-            // Build a string out of the recessive allele symbols
-            StringBuilder sb = new StringBuilder($"{{ {_recessiveAlleles[0].Symbol}");
-            for (int a = 1; a < num; ++a)
+
+            // Build a string out of the recessive allele symbols and display it
+            sb = new StringBuilder($"{{ {_recessiveAlleles[0].Symbol}");
+            for (int a = 1; a < numRecessive; ++a)
                 sb.Append($", {_recessiveAlleles[a].Symbol}");
             sb.Append(" }");
-
             RecessiveSetLbl.Text = sb.ToString();
-        }
-        private void redrawGenotypes(int numDominant, int numRecessive) {
+
             // Clear old count controls
             HeteroGrpbox.Controls.Clear();
             HomoGrpbox.Controls.Clear();
+            AlleleCheckPanel.Controls.Clear();
+            OutputChart.Series.Clear();
+            OutputDgv.Columns.Clear();
 
-            // Add controls for the Homozygous genotype counts
-            for (int d = 0; d < numDominant; ++d) {
-                string symbol = _dominantAlleles[d].Symbol;
-                GenotypeCountPrefab prefab = new GenotypeCountPrefab(true, symbol + symbol, d, 0);
-                prefab.AddToContainer(HomoGrpbox);
-            }
-            for (int r = 0; r < numRecessive; ++r) {
-                string symbol = _recessiveAlleles[r].Symbol;
-                GenotypeCountPrefab prefab = new GenotypeCountPrefab(true, symbol + symbol, r + numDominant, 0);
-                prefab.AddToContainer(HomoGrpbox);
-            }
-
-            // Add controls for the Heterozygous genotype counts
+            // Get all possible Alleles and associate them with Controls
+            int numAlleles = numDominant + numRecessive;
             Allele[] everyAllele = _dominantAlleles.Take(numDominant).Union(_recessiveAlleles.Take(numRecessive)).ToArray();
-            for (int a1 = 0; a1 < numDominant + numRecessive; ++a1) {
-                for (int a2=0;a2< a1; ++a2) {
-                    string symbol = everyAllele[a2].Symbol + everyAllele[a1].Symbol;
-                    GenotypeCountPrefab prefab = new GenotypeCountPrefab(false, symbol, a1, a2);
-                    prefab.AddToContainer(HeteroGrpbox);
+            ChartArea _alleleArea = OutputChart.ChartAreas[0];
+            _series = new Dictionary<Allele, Series>(numAlleles);
+            _dgvColumns = new Dictionary<Allele, DataGridViewColumn>(numAlleles);
+            OutputDgv.Columns.Add(IterationCol);
+            for (int a = 0; a < numAlleles; ++a) {
+                Allele allele = everyAllele[a];
+
+                // Chart series
+                Series s = new Series(allele.Symbol) {
+                    ChartArea = _alleleArea.Name,
+                    ChartType = SeriesChartType.Line,
+                    //MarkerStyle = MARKER_STYLES[a],
+                };
+                _series.Add(allele, s);
+                OutputChart.Series.Add(s);
+
+                // DataGridViewColumns
+                DataGridViewColumn col = new DataGridViewTextBoxColumn() {
+                    Name = $"AlleleFreqCol{a}",
+                    HeaderText = allele.Symbol,
+                    ReadOnly = true,
+                    SortMode = DataGridViewColumnSortMode.NotSortable,
+                };
+                _dgvColumns.Add(everyAllele[a], col);
+                OutputDgv.Columns.Add(col);
+
+                // Checkboxes
+                AlleleCheckPrefab prefab = new AlleleCheckPrefab(allele, _series[allele], _dgvColumns[allele], a);
+                prefab.AddToContainer(AlleleCheckPanel);
+            }
+
+            // Define all possible Genotypes and give them a default initial count in the population
+            _homoCounts = new GenotypeCount[numAlleles];
+            _heteroCounts = new GenotypeCount[numAlleles, numAlleles];
+            for (int ca = 0; ca < numAlleles; ++ca) {   // ca = col allele
+                // Homozygotes
+                Genotype homoGenotype = new Genotype(everyAllele[ca]);
+                GenotypeCount homo = new GenotypeCount() { Genotype = homoGenotype, Count = DEFAULT_COUNT };
+                _homoCounts[ca] = homo;
+                GenotypeCountPrefab homoPrefab = new GenotypeCountPrefab(homo, ca, 0);
+                homoPrefab.AddToContainer(HomoGrpbox);
+
+                // Heterozygotes
+                for (int ra = ca + 1; ra < numAlleles; ++ra) {  // ra = row allele
+                    Genotype heteroGenotype = new Genotype(everyAllele[ca], everyAllele[ra]);
+                    GenotypeCount hetero = new GenotypeCount() { Genotype = heteroGenotype, Count = DEFAULT_COUNT };
+                    _heteroCounts[ra, ca] = hetero;
+                    GenotypeCountPrefab heteroPrefab = new GenotypeCountPrefab(hetero, ra, ca);
+                    heteroPrefab.AddToContainer(HeteroGrpbox);
                 }
             }
+
+        }
+        private void setupSimulation() {
+            // Use provided parameters to define a Simulator
+            _sim = defineSimulator();
+
+            // Get allele frequencies from genotype frequencies and add them to the Chart
+            Dictionary<Allele, double> alleleFreqs = getAlleleFreqs(_sim.Counts);
+            int rowIndex = OutputDgv.Rows.Add(1);
+            OutputDgv.Rows[rowIndex].Cells[IterationCol.Index].Value = 0;
+            foreach (Allele a in alleleFreqs.Keys) {
+                _series[a].Points.AddXY(0, alleleFreqs[a]);
+                OutputDgv.Rows[rowIndex].Cells[_dgvColumns[a].Index].Value = alleleFreqs[a].ToString("N3");
+            }
+
+            // Prevent user reconfiguring things while Simulator is running
+            ConfigTblLayout.Enabled = false;
+        }
+        private Dictionary<Allele, double> getAlleleFreqs(IDictionary<Genotype, int> genotypeCounts) {
+            // Get the total count of Alleles
+            long totalPop = genotypeCounts.Sum(pair => (long)pair.Value);
+            long totalAlleles = 2 * totalPop;
+
+            // Get the count of each Allele (twice in homozygotes, once in heterozygotes)
+            Dictionary<Allele, long> alleleCounts = new Dictionary<Allele, long>();
+            Genotype[] genotypes = genotypeCounts.Keys.ToArray();
+            foreach (Genotype g in genotypes) {
+                int count = genotypeCounts[g];
+
+                // Increment the first Allele's count
+                Allele a1 = g.Alleles[0];
+                if (alleleCounts.ContainsKey(a1))
+                    alleleCounts[a1] += count;
+                else
+                    alleleCounts.Add(a1, count);
+               
+                // Increment the third Allele's count
+                Allele a2 = g.Alleles[1];
+                if (alleleCounts.ContainsKey(a2))
+                    alleleCounts[a2] += count;
+                else
+                    alleleCounts.Add(a2, count);
+            }
+
+            // Divide by total to get Allele frequencies
+            Dictionary<Allele, double> alleleFreqs = alleleCounts.ToDictionary(
+                pair => pair.Key,
+                pair => (double)pair.Value / (double)totalAlleles
+            );
+            return alleleFreqs;
         }
         private Simulator defineSimulator() {
             // Get the number of dominant/recessive alleles
@@ -195,6 +303,12 @@ namespace HardyWeinberg.Shell {
 
             // Get the initial number of individuals with each genotype
             Dictionary<Genotype, int> counts = new Dictionary<Genotype, int>();
+            foreach (GenotypeCount data in _homoCounts)
+                counts.Add(data.Genotype, data.Count);
+            foreach (GenotypeCount data in _heteroCounts) {
+                if (data != null)
+                    counts.Add(data.Genotype, data.Count);
+            }
 
             // Return a Simulator with these initial counts
             Simulator sim = new Simulator(counts);
@@ -206,13 +320,39 @@ namespace HardyWeinberg.Shell {
             PlayPauseBtn.Text = (playing ? "Pause" : "Play");
         }
         private void doIteration(Simulator sim) {
-            //sim.Iterate();
+            ++_iteration;
 
+            // Do an iteration of the Simulator
+            sim.Iterate();
+
+            // Get allele frequencies from genotype frequencies and add these values to the output Controls
+            Dictionary<Allele, double> alleleFreqs = getAlleleFreqs(sim.Counts);
+            int rowIndex = 0;
+            OutputDgv.InvokeIfRequired(() => {
+                rowIndex = OutputDgv.Rows.Add(1);
+                OutputDgv.Rows[rowIndex].Cells[IterationCol.Index].Value = _iteration;
+                OutputDgv.FirstDisplayedScrollingRowIndex = rowIndex;
+            });
+            foreach (Allele a in alleleFreqs.Keys) {
+                OutputChart.InvokeIfRequired(() => {
+                    _series[a].Points.AddXY(_iteration, alleleFreqs[a]);
+                });
+                OutputDgv.InvokeIfRequired(() => {
+                    OutputDgv.Rows[rowIndex].Cells[_dgvColumns[a].Index].Value = alleleFreqs[a].ToString("N3");
+                });
+            }
+
+            // Adjust controls
             IterationLbl.InvokeIfRequired(() => {
-                IterationLbl.Text = $"Iteration: {++_iteration}";
+                IterationLbl.Text = $"Iteration: {_iteration}";
             });
         }
 
+    }
+
+    public class GenotypeCount {
+        public Genotype Genotype { get; set; }
+        public int Count { get; set; }
     }
 
 }

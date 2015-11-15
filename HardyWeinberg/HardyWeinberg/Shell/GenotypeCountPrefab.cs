@@ -6,6 +6,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+using HardyWeinberg.Kernel;
+
 namespace HardyWeinberg.Shell {
 
     class GenotypeCountPrefab : Util.ControlPrefab {
@@ -17,12 +19,15 @@ namespace HardyWeinberg.Shell {
         private Size UPDOWN_SIZE = new Size(60, 23);
         private Size LBL_SIZE = new Size(23, 13);
         private const int LBL_OFFSET = 2;
+
         private Label _label;
         private NumericUpDown _upDown;
+        private BindingSource _dataBS;
         
         // CONSTRUCTORS
-        public GenotypeCountPrefab(bool homozygous, string symbol, int row, int col) {
-            build(homozygous, symbol, row, col);
+        public GenotypeCountPrefab(GenotypeCount data, int row, int col) {
+            _dataBS = new BindingSource(data, null);
+            build(row, col);
         }
 
         // HELPER FUNCTIONS
@@ -30,32 +35,43 @@ namespace HardyWeinberg.Shell {
             container.Controls.Add(_label);
             container.Controls.Add(_upDown);
         }
-        private void build(bool homozygous, string symbol, int row, int col) {
+        private void build(int row, int col) {
             string id = row.ToString() + col.ToString();
             int x = INIT_HORZ_PADDING + (UPDOWN_SIZE.Width + LBL_SIZE.Width + HORZ_PADDING) * col;
             int y = INIT_VERT_PADDING + (Math.Max(UPDOWN_SIZE.Height, LBL_SIZE.Width) + VERT_PADDING) * row;
 
+            GenotypeCount data = (GenotypeCount)_dataBS.DataSource;
+            bool isHomo = data.Genotype.IsHomozygous;
+
             // Initialize the Label
             _label = new Label() {
-                Name = $"{(homozygous ? "Homo" : "Hetero")}CountLbl{id}",
+                Name = $"{(isHomo ? "Homo" : "Hetero")}CountLbl{id}",
                 Location = new Point(x, y + LBL_OFFSET),
                 AutoSize = false,
                 Size = LBL_SIZE,
-                Text = symbol,
             };
+            Binding lblBinding = new Binding("Text", _dataBS, "Genotype.Alleles", true, DataSourceUpdateMode.Never);
+            lblBinding.Format += LblBinding_Format;
+            _label.DataBindings.Add(lblBinding);
 
             // Initialize the NumericUpDown
             _upDown = new NumericUpDown() {
-                Name = $"{(homozygous ? "Homo" : "Hetero")}CountUpDown{id}",
+                Name = $"{(isHomo ? "Homo" : "Hetero")}CountUpDown{id}",
                 Location = new Point(x + LBL_SIZE.Width, y),
                 Size = UPDOWN_SIZE,
                 Maximum = 100000m,  // 100,000
-                Minimum = 1m,
+                Minimum = 0m,
+                TabIndex = row,
                 Value = 100m,
                 ThousandsSeparator = true,
             };
+            Binding countBinding = new Binding("Value", _dataBS, "Count", false, DataSourceUpdateMode.OnPropertyChanged);
+            _upDown.DataBindings.Add(countBinding);
         }
-        
+        private void LblBinding_Format(object sender, ConvertEventArgs e) {
+            IList<Allele> alleles = e.Value as List<Allele>;
+            e.Value = alleles[0].Symbol + alleles[1].Symbol;
+        }
     }
 
 }
