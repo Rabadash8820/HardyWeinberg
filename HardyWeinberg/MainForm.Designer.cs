@@ -1,4 +1,4 @@
-﻿namespace HardyWeinberg.Shell {
+﻿namespace HardyWeinberg {
     partial class MainForm {
         /// <summary>
         /// Required designer variable.

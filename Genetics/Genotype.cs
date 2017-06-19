@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 
-namespace HardyWeinberg.Kernel {
+namespace Genetics {
 
     public class Genotype {
         // PROPERTIES
@@ -11,29 +11,25 @@ namespace HardyWeinberg.Kernel {
 
         // CONSTRUCTORS
         public Genotype(Allele allele) {
-            Alleles = new List<Allele>(2);
-
             // Define the genotype as homozygous
-            Alleles.Add(allele);
-            Alleles.Add(allele);
+            Alleles = new List<Allele>(2) {
+                allele,
+                allele
+            };
             _homo = true;
         }
         public Genotype(Allele allele1, Allele allele2) {
-            Alleles = new List<Allele>(2);
-
             // Define the genotype as heterozygous
-            Alleles.Add(allele1);
-            Alleles.Add(allele2);
+            Alleles = new List<Allele>(2) {
+                allele1,
+                allele2
+            };
             _homo = false;
         }
 
         // INTERFACE FUNCTIONS
-        public bool IsHomozygous {
-            get { return _homo; }
-        }
-        public bool IsHeterozygous {
-            get { return !_homo; }
-        }
+        public bool IsHomozygous => _homo;
+        public bool IsHeterozygous => !_homo;
     }
 
 }

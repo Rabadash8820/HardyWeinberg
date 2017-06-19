@@ -1,18 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Data;
-using System.Drawing;
 using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 using System.Windows.Forms.DataVisualization.Charting;
 
-using HardyWeinberg.Kernel;
-using HardyWeinberg.Util;
+using Genetics;
 
-namespace HardyWeinberg.Shell {
+namespace HardyWeinberg {
 
     public partial class MainForm : Form {
 
@@ -27,9 +24,9 @@ namespace HardyWeinberg.Shell {
         private Dictionary<Allele, Series> _series;
         private Dictionary<Allele, DataGridViewColumn> _dgvColumns;
 
-        private const int DEFAULT_COUNT = 100;
-        private const int NUM_DEFAULT_ALLELES = 5;
-        private MarkerStyle[] MARKER_STYLES;
+        private static int s_defaultCount = 100;
+        private const int s_numDefaultAlleles = 5;
+        private MarkerStyle[] _markerStyles;
 
         // CONSTRUCTORS
         public MainForm() {
@@ -43,9 +40,9 @@ namespace HardyWeinberg.Shell {
 
             // Set playback speed data bindings
             _speedBS = new BindingSource(5, null);
-            Binding speedTrackBinding = new Binding("Value", _speedBS, null, false, DataSourceUpdateMode.OnPropertyChanged);
+            var speedTrackBinding = new Binding("Value", _speedBS, null, false, DataSourceUpdateMode.OnPropertyChanged);
             SpeedTrackBar.DataBindings.Add(speedTrackBinding);
-            Binding speedLblBinding = new Binding("Text", _speedBS, null, true, DataSourceUpdateMode.Never);
+            var speedLblBinding = new Binding("Text", _speedBS, null, true, DataSourceUpdateMode.Never);
             speedLblBinding.Format += SpeedBinding_Format;
             SpeedLbl.DataBindings.Add(speedLblBinding);
             
@@ -104,7 +101,7 @@ namespace HardyWeinberg.Shell {
             int sleepTime;
 
             // Run the Simulator until cancelled (paused)
-            Simulator sim = e.Argument as Simulator;
+            var sim = e.Argument as Simulator;
             while (!SimulationWorker.CancellationPending) {
                 // Do an iteration
                 start = DateTime.Now;
@@ -130,14 +127,14 @@ namespace HardyWeinberg.Shell {
         // HELPER FUNCTIONS
         private void defineConstants() {
             // Define default Alleles
-            _dominantAlleles = new Allele[NUM_DEFAULT_ALLELES] {
+            _dominantAlleles = new Allele[s_numDefaultAlleles] {
                 new Allele() { Symbol="A", IsRecessive=false },
                 new Allele() { Symbol="B", IsRecessive=false },
                 new Allele() { Symbol="C", IsRecessive=false },
                 new Allele() { Symbol="D", IsRecessive=false },
                 new Allele() { Symbol="E", IsRecessive=false },
             };
-            _recessiveAlleles = new Allele[NUM_DEFAULT_ALLELES] {
+            _recessiveAlleles = new Allele[s_numDefaultAlleles] {
                 new Allele() { Symbol="a", IsRecessive=true },
                 new Allele() { Symbol="b", IsRecessive=true },
                 new Allele() { Symbol="c", IsRecessive=true },
@@ -146,7 +143,7 @@ namespace HardyWeinberg.Shell {
             };
 
             // Define MarkerStyles to be used in later plotting
-            MARKER_STYLES = new MarkerStyle[NUM_DEFAULT_ALLELES] {
+            _markerStyles = new MarkerStyle[s_numDefaultAlleles] {
                 MarkerStyle.Diamond,
                 MarkerStyle.Square,
                 MarkerStyle.Circle,
@@ -202,7 +199,7 @@ namespace HardyWeinberg.Shell {
                 Allele allele = everyAllele[a];
 
                 // Chart series
-                Series s = new Series(allele.Symbol) {
+                var s = new Series(allele.Symbol) {
                     ChartArea = _alleleArea.Name,
                     ChartType = SeriesChartType.Line,
                     //MarkerStyle = MARKER_STYLES[a],
@@ -211,7 +208,7 @@ namespace HardyWeinberg.Shell {
                 OutputChart.Series.Add(s);
 
                 // DataGridViewColumns
-                DataGridViewColumn col = new DataGridViewTextBoxColumn() {
+                var col = new DataGridViewTextBoxColumn() {
                     Name = $"AlleleFreqCol{a}",
                     HeaderText = allele.Symbol,
                     ReadOnly = true,
@@ -221,7 +218,7 @@ namespace HardyWeinberg.Shell {
                 OutputDgv.Columns.Add(col);
 
                 // Checkboxes
-                AlleleCheckPrefab prefab = new AlleleCheckPrefab(allele, _series[allele], _dgvColumns[allele], a);
+                var prefab = new AlleleCheckPrefab(allele, _series[allele], _dgvColumns[allele], a);
                 prefab.AddToContainer(AlleleCheckPanel);
             }
 
@@ -230,18 +227,18 @@ namespace HardyWeinberg.Shell {
             _heteroCounts = new GenotypeCount[numAlleles, numAlleles];
             for (int ca = 0; ca < numAlleles; ++ca) {   // ca = col allele
                 // Homozygotes
-                Genotype homoGenotype = new Genotype(everyAllele[ca]);
-                GenotypeCount homo = new GenotypeCount() { Genotype = homoGenotype, Count = DEFAULT_COUNT };
+                var homoGenotype = new Genotype(everyAllele[ca]);
+                var homo = new GenotypeCount() { Genotype = homoGenotype, Count = s_defaultCount };
                 _homoCounts[ca] = homo;
-                GenotypeCountPrefab homoPrefab = new GenotypeCountPrefab(homo, ca, 0);
+                var homoPrefab = new GenotypeCountPrefab(homo, ca, 0);
                 homoPrefab.AddToContainer(HomoGrpbox);
 
                 // Heterozygotes
                 for (int ra = ca + 1; ra < numAlleles; ++ra) {  // ra = row allele
-                    Genotype heteroGenotype = new Genotype(everyAllele[ca], everyAllele[ra]);
-                    GenotypeCount hetero = new GenotypeCount() { Genotype = heteroGenotype, Count = DEFAULT_COUNT };
+                    var heteroGenotype = new Genotype(everyAllele[ca], everyAllele[ra]);
+                    var hetero = new GenotypeCount() { Genotype = heteroGenotype, Count = s_defaultCount };
                     _heteroCounts[ra, ca] = hetero;
-                    GenotypeCountPrefab heteroPrefab = new GenotypeCountPrefab(hetero, ra, ca);
+                    var heteroPrefab = new GenotypeCountPrefab(hetero, ra, ca);
                     heteroPrefab.AddToContainer(HeteroGrpbox);
                 }
             }
@@ -269,7 +266,7 @@ namespace HardyWeinberg.Shell {
             long totalAlleles = 2 * totalPop;
 
             // Get the count of each Allele (twice in homozygotes, once in heterozygotes)
-            Dictionary<Allele, long> alleleCounts = new Dictionary<Allele, long>();
+            var alleleCounts = new Dictionary<Allele, long>();
             Genotype[] genotypes = genotypeCounts.Keys.ToArray();
             foreach (Genotype g in genotypes) {
                 int count = genotypeCounts[g];
@@ -290,7 +287,7 @@ namespace HardyWeinberg.Shell {
             }
 
             // Divide by total to get Allele frequencies
-            Dictionary<Allele, double> alleleFreqs = alleleCounts.ToDictionary(
+            var alleleFreqs = alleleCounts.ToDictionary(
                 pair => pair.Key,
                 pair => (double)pair.Value / (double)totalAlleles
             );
@@ -302,7 +299,7 @@ namespace HardyWeinberg.Shell {
             int numRecessive = Convert.ToInt32(RecessiveCombo.SelectedItem);
 
             // Get the initial number of individuals with each genotype
-            Dictionary<Genotype, int> counts = new Dictionary<Genotype, int>();
+            var counts = new Dictionary<Genotype, int>();
             foreach (GenotypeCount data in _homoCounts)
                 counts.Add(data.Genotype, data.Count);
             foreach (GenotypeCount data in _heteroCounts) {
@@ -311,7 +308,7 @@ namespace HardyWeinberg.Shell {
             }
 
             // Return a Simulator with these initial counts
-            Simulator sim = new Simulator(counts);
+            var sim = new Simulator(counts);
             return sim;
         }
         private void togglePlayState(bool playing) {

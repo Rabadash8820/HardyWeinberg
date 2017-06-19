@@ -2,16 +2,12 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace HardyWeinberg.Kernel {
+namespace Genetics {
 
-    class Simulator {
+    public class Simulator {
         // PROPERTIES
-        public long PopulationSize {
-            get { return _popSize; }
-        }
-        public IDictionary<Genotype, int> Counts {
-            get { return _counts; }
-        }
+        public long PopulationSize => _popSize;
+        public IDictionary<Genotype, int> Counts => _counts;
 
         // HIDDEN FIELDS
         private IList<Genotype> _genotypes;

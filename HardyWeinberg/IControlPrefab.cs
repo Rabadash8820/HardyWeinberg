@@ -1,6 +1,6 @@
 ﻿using System.Windows.Forms;
 
-namespace HardyWeinberg.Util {
+namespace HardyWeinberg {
 
     public interface IControlPrefab {
         void AddToContainer(Control container);

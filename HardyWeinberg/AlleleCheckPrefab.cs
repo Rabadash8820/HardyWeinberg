@@ -1,19 +1,17 @@
-﻿using System;
+﻿using Genetics;
+using System;
 using System.Drawing;
 using System.Windows.Forms;
-using System.Collections.Generic;
 using System.Windows.Forms.DataVisualization.Charting;
 
-using HardyWeinberg.Kernel;
+namespace HardyWeinberg {
 
-namespace HardyWeinberg.Shell {
-
-    class AlleleCheckPrefab : Util.ControlPrefab {
+    class AlleleCheckPrefab : ControlPrefab {
         // HIDDEN FIELDS
-        private const int INIT_VERT_PADDING = 20;
-        private const int INIT_HORZ_PADDING = 7;
-        private const int VERT_PADDING = 10;
-        private const int CHK_HEIGHT = 20;
+        private const int s_initVertPadding = 20;
+        private const int s_initHorzPadding = 7;
+        private const int s_vertPadding = 10;
+        private const int s_chkHeight = 20;
 
         private CheckBox _chk;
         private Series _series;
@@ -28,12 +26,12 @@ namespace HardyWeinberg.Shell {
         }
 
         // HELPER FUNCTIONS
-        protected override void AddControlsToContainer(Control container) {
+        protected override void addControlsToContainer(Control container) {
             container.Controls.Add(_chk);
         }
         private void build(Allele allele, int row) {
-            int x = INIT_HORZ_PADDING;
-            int y = INIT_VERT_PADDING + (CHK_HEIGHT + VERT_PADDING) * row;
+            int x = s_initHorzPadding;
+            int y = s_initVertPadding + (s_chkHeight + s_vertPadding) * row;
 
             // Initialize the Checkbox
             _chk = new CheckBox() {
